@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 NAS</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #4fc3f7;
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .subtitle {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 20px;
+        }
+        .upload-zone {
+            border: 2px dashed #0f3460;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: rgba(15, 52, 96, 0.3);
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .upload-zone:hover { border-color: #4fc3f7; }
+        .upload-zone.dragover {
+            border-color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.1);
+        }
+        .upload-zone p {
+            margin: 0;
+            font-size: 1em;
+            color: #aaa;
+        }
+        .upload-zone input {
+            display: none;
+        }
+        .btn {
+            background: #0f3460;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: background 0.2s;
+        }
+        .btn:hover { background: #1a5276; }
+        .btn-danger { background: #c0392b; }
+        .btn-danger:hover { background: #a93226; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        th { color: #4fc3f7; font-weight: normal; }
+        tr:hover { background: rgba(15, 52, 96, 0.2); }
+        a { color: #4fc3f7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .status.success { background: rgba(46, 204, 113, 0.2); border: 1px solid #2ecc71; }
+        .status.error { background: rgba(231, 76, 60, 0.2); border: 1px solid #e74c3c; }
+        .progress-bar {
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #4fc3f7;
+            width: 0%;
+            transition: width 0.2s;
+        }
+    </style>
+</head>
+<body>
+    <h1>ESP32 NAS</h1>
+    <p class="subtitle">File Browser & Upload</p>
+
+    <div id="status" class="status"></div>
+
+    <div class="upload-zone" id="dropZone">
+        <p>Drop files here or click to select</p>
+        <input type="file" id="fileInput" multiple>
+    </div>
+
+    <button class="btn" id="refreshBtn">Refresh File List</button>
+
+    <h2 style="margin-top: 30px; font-size: 1.1em;">Files</h2>
+    <div id="fileList">Loading...</div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const statusDiv = document.getElementById('status');
+        const fileList = document.getElementById('fileList');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            uploadFiles(Array.from(e.dataTransfer.files));
+        });
+
+        fileInput.addEventListener('change', e => {
+            uploadFiles(Array.from(e.target.files));
+            e.target.value = '';
+        });
+
+        function showStatus(msg, isError) {
+            statusDiv.textContent = msg;
+            statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+            statusDiv.style.display = 'block';
+            setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+        }
+
+        async function uploadFiles(files) {
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const progressContainer = document.createElement('div');
+                progressContainer.style.margin = '5px 0';
+                progressContainer.innerHTML = `<span>${file.name}</span><div class="progress-bar"><div class="progress-fill" id="progress-${file.name}"></div></div>`;
+                fileList.insertBefore(progressContainer, fileList.firstChild);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', e => {
+                        if (e.lengthComputable) {
+                            const pct = (e.loaded / e.total) * 100;
+                            const bar = document.getElementById(`progress-${file.name}`);
+                            if (bar) bar.style.width = pct + '%';
+                        }
+                    });
+                    xhr.open('POST', '/upload');
+                    xhr.onload = () => {
+                        progressContainer.remove();
+                        if (xhr.status === 200) {
+                            showStatus(`Uploaded: ${file.name}`, false);
+                        } else {
+                            showStatus(`Upload failed: ${file.name} (${xhr.status})`, true);
+                        }
+                        refreshFiles();
+                    };
+                    xhr.onerror = () => {
+                        progressContainer.remove();
+                        showStatus(`Upload error: ${file.name}`, true);
+                    };
+                    xhr.send(formData);
+                } catch (err) {
+                    progressContainer.remove();
+                    showStatus(`Error: ${err.message}`, true);
+                }
+            }
+        }
+
+        async function refreshFiles(path = '/') {
+            try {
+                const resp = await fetch(`/files?dir=${encodeURIComponent(path)}`);
+                const text = await resp.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(text, 'text/html');
+                const items = doc.querySelectorAll('li');
+                let html = '<table><tr><th>Name</th><th>Size</th><th>Action</th></tr>';
+                items.forEach(li => {
+                    const link = li.querySelector('a');
+                    const name = link ? link.textContent : li.textContent;
+                    const isDir = name.startsWith('[DIR]');
+                    const url = link ? link.href : '';
+                    const sizeMatch = li.textContent.match(/\(([^)]+)\)$/);
+                    const size = sizeMatch ? sizeMatch[1] : '-';
+
+                    let downloadLink = '-';
+                    if (url && !isDir) {
+                        const encodedPath = url.split('/download?file=').pop();
+                        if (encodedPath) downloadLink = `<a href="/download?file=${decodeURIComponent(encodedPath)}">Download</a>`;
+                    }
+                    html += `<tr><td>${name}</td><td>${isDir ? '-' : size}</td><td>${downloadLink} ${isDir ? '' : `<button class="btn-danger" onclick="deleteFile('${encodedPath}')">Del</button>`}</td></tr>`;
+                });
+                html += '</table>';
+                fileList.innerHTML = html;
+            } catch (err) {
+                fileList.innerHTML = `<p style="color:red;">Error loading files: ${err.message}</p>`;
+            }
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', () => refreshFiles());
+        async function deleteFile(path) {
+            if (!confirm('Delete ' + decodeURIComponent(path) + '?')) return;
+            try {
+                const resp = await fetch('/delete?file=' + encodeURIComponent(path));
+                if (resp.ok) {
+                    showStatus('Deleted: ' + decodeURIComponent(path), false);
+                } else {
+                    showStatus('Delete failed: ' + resp.status, true);
+                }
+                refreshFiles();
+            } catch (err) {
+                showStatus('Error: ' + err.message, true);
+            }
+        }
+        refreshFiles();
+    </script>
+</body>
+</html>
