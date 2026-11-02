@@ -2,8 +2,6 @@
 
 # [EN](./README.Md) | 中文
 
-![](images/1.png)
-
 # 快速开始
 
 1. 从Arduino 库安装管理器中安装`TFT_eSPI`

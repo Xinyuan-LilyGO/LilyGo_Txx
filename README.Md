@@ -2,8 +2,6 @@
 
 # [中文](./README_CN.Md) | EN
 
-![](images/1.png)
-
 # Quick Start
 
 1. Install `TFT_eSPI` from the Arduino library installation manager
