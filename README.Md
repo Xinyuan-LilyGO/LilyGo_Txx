@@ -2,8 +2,6 @@
 
 # [中文](./README_CN.Md) | EN
 
-![](images/1.png)
-
 # Quick Start
 
 1. Install `TFT_eSPI` from the Arduino library installation manager
@@ -99,3 +97,21 @@
 | SPEAKER OUT | N/A     | 25      |
 | I2C_SDA     | 21      | 21      |
 | I2C_SCL     | 22      | 22      |
+
+## Bluetooth MP3 Player (T4 V1.3)
+
+A complete PlatformIO project for the T4 V1.3 that turns the board into a
+portable Bluetooth music player: MP3 files from the microSD card are decoded
+and streamed over Bluetooth Classic (A2DP source) to any Bluetooth speaker
+or headphones, picked from an on-screen device list.
+
+- No manual TFT_eSPI configuration needed - the display setup is embedded in
+  the project (`platformio.ini`)
+- LVGL 8 UI: Bluetooth device picker (boots straight into it), now-playing
+  screen, volume control, backlight auto-sleep
+- Dedicated decode task + PCM ring buffer so the Bluetooth stack is never
+  blocked by SD-card or decoder work
+- Flashing steps for VS Code / PlatformIO, features and button map in
+  [`T4_V13/Bluetooth_MP3_Player/README.md`](./T4_V13/Bluetooth_MP3_Player/README.md)
+
+![Bluetooth MP3 Player running on T4 V1.3](./T4_V13/Bluetooth_MP3_Player/images/case-photo.jpg)
